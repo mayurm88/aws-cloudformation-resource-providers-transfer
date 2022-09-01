@@ -26,4 +26,4 @@ buildSrc
 rpdk.log*
 
 # Temporary build artifact
-aws-transfer-certificate.zip
+*.zip

@@ -1,0 +1,64 @@
+package com.stedi.transfer.profile;
+
+import lombok.NoArgsConstructor;
+import software.amazon.awssdk.services.transfer.TransferClient;
+import software.amazon.awssdk.services.transfer.model.InternalServiceErrorException;
+import software.amazon.awssdk.services.transfer.model.InvalidRequestException;
+import software.amazon.awssdk.services.transfer.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.transfer.model.TransferException;
+import software.amazon.awssdk.services.transfer.model.UpdateProfileRequest;
+import software.amazon.cloudformation.exceptions.CfnGeneralServiceException;
+import software.amazon.cloudformation.exceptions.CfnInvalidRequestException;
+import software.amazon.cloudformation.exceptions.CfnNotFoundException;
+import software.amazon.cloudformation.exceptions.CfnServiceInternalErrorException;
+import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
+import software.amazon.cloudformation.proxy.Logger;
+import software.amazon.cloudformation.proxy.ProgressEvent;
+import software.amazon.cloudformation.proxy.OperationStatus;
+import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+
+@NoArgsConstructor
+public class UpdateHandler extends BaseHandler<CallbackContext> {
+    private TransferClient client;
+
+    public UpdateHandler(TransferClient client) {
+        this.client = client;
+    }
+
+    @Override
+    public ProgressEvent<ResourceModel, CallbackContext> handleRequest(
+            final AmazonWebServicesClientProxy proxy,
+            final ResourceHandlerRequest<ResourceModel> request,
+            final CallbackContext callbackContext,
+            final Logger logger) {
+
+        if (this.client == null) {
+            this.client = ClientBuilder.getClient();
+        }
+
+        final ResourceModel model = request.getDesiredResourceState();
+        UpdateProfileRequest updateProfileRequest = UpdateProfileRequest.builder()
+                .profileId(model.getProfileId())
+                .certificateIds(model.getCertificateIds())
+                .build();
+
+        try {
+            proxy.injectCredentialsAndInvokeV2(updateProfileRequest, client::updateProfile);
+            logger.log(String.format("%s updated successfully", ResourceModel.TYPE_NAME));
+        } catch (InvalidRequestException e) {
+            throw new CfnInvalidRequestException(request.toString(), e);
+        } catch (InternalServiceErrorException e) {
+            throw new CfnServiceInternalErrorException("Updating certificates for profile", e);
+        } catch (ResourceNotFoundException e) {
+            throw new CfnNotFoundException(ResourceModel.TYPE_NAME, model.getProfileId());
+        } catch (TransferException e) {
+            logger.log(String.format("Failed to update %s", model.getProfileId()));
+            throw new CfnGeneralServiceException(e.getMessage(), e);
+        }
+
+        return ProgressEvent.<ResourceModel, CallbackContext>builder()
+                .resourceModel(model)
+                .status(OperationStatus.SUCCESS)
+                .build();
+    }
+}
